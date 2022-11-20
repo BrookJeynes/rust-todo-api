@@ -7,7 +7,6 @@ use crate::response_models::{Response, TodoResponse};
 pub fn list() -> String {
     use crate::schema::posts;
 
-    /* Get all our heroes from database */
     let posts: Vec<Post> = posts::table
         .select(posts::all_columns)
         .load::<Post>(&mut crate::establish_connection())
