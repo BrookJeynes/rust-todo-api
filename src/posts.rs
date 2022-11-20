@@ -7,10 +7,13 @@ use crate::response_models::{Response, TodoResponse};
 pub fn list() -> String {
     use crate::schema::posts;
 
-    let posts: Vec<Post> = posts::table
-        .select(posts::all_columns)
-        .load::<Post>(&mut crate::establish_connection())
-        .expect("Whoops, like this went bananas!");
+    let posts: Vec<Post> = match posts::table.select(posts::all_columns).load::<Post>(&mut crate::establish_connection()) {
+        Ok(posts) => posts,
+        Err(err) => {
+            let response = Response { error: true, message: format!("Error getting posts - {}", err) };
+            return serde_json::to_string(&response).unwrap(); 
+        } 
+    };
 
     let response = TodoResponse { error: false, data: posts };
 
