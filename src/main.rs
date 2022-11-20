@@ -19,5 +19,5 @@ pub fn establish_connection() -> PgConnection {
 
 #[launch]
 fn rocket() -> _ {
-    rocket::build().mount("/api", routes![posts::list, posts::new_post, posts::delete_post, posts::publish_post])
+    rocket::build().mount("/api", routes![posts::list_posts, posts::list_post, posts::new_post, posts::publish_post, posts::delete_post])
 }

@@ -1,82 +1,118 @@
 use rocket::serde::json::Json;
 use diesel::prelude::*;
 use crate::models::{Post, NewPost};
-use crate::response_models::{Response, TodoResponse};
+use crate::response_models::{Response, PostsResponse, PostResponse};
+use rocket::response::status::{NotFound, NoContent, Created};
 
 #[get("/")]
-pub fn list() -> String {
+pub fn list_posts() -> String {
     use crate::schema::posts;
 
     let posts: Vec<Post> = match posts::table.select(posts::all_columns).load::<Post>(&mut crate::establish_connection()) {
         Ok(posts) => posts,
-        Err(err) => {
-            let response = Response { error: true, message: format!("Error getting posts - {}", err) };
-            return serde_json::to_string(&response).unwrap(); 
-        } 
+        // doesn't seem like insert_into() will throw any errors, leaving room for specific error handling just in case though
+        Err(err) => match err {
+            _ => {
+                panic!("Database error - {}", err);
+            }
+        }
     };
 
-    let response = TodoResponse { error: false, data: posts };
+    let response = PostsResponse { error: false, data: posts };
 
     serde_json::to_string(&response).unwrap()
 }
 
+#[get("/post/<post_id>")]
+pub fn list_post(post_id: i32) -> Result<String, NotFound<String>> {
+    use crate::schema::posts;
+
+    let post: Post = match posts::table.find(post_id).first::<Post>(&mut crate::establish_connection()) {
+        Ok(post) => post,
+        Err(err) => match err {
+            diesel::result::Error::NotFound => {
+                let response = Response { error: true, message: format!("Error selecting post with id {} - {}", post_id, err)};
+                return Err(NotFound(serde_json::to_string(&response).unwrap()));
+            },
+            _ => {
+                panic!("Database error - {}", err);
+            }        
+        }
+    };
+
+    let response = PostResponse { error: false, data: post };
+
+    Ok(serde_json::to_string(&response).unwrap())
+}
 
 #[post("/new_post", format = "application/json", data = "<post>")]
-pub fn new_post(post: Json<NewPost>) -> String {
+pub fn new_post(post: Json<NewPost>) -> Created<String> {
     use crate::schema::posts;
 
     let post = post.into_inner();
 
-    match diesel::insert_into(posts::table).values(&post).execute(&mut crate::establish_connection()) {
-        Ok(_) => {
-            let response = Response {error: false, message: format!("Successfully inserted post {}", post.title)};
-            serde_json::to_string(&response).unwrap()
+    // refactor to return post as well
+    match diesel::insert_into(posts::table).values(&post).get_result::<Post>(&mut crate::establish_connection()) {
+        Ok(post) => {
+            let response = PostsResponse { error: false, data: vec![post] };
+            Created::new("").tagged_body(serde_json::to_string(&response).unwrap())
         },
-        Err(err) => {
-            let response = Response {error: true, message: format!("Error saving post - {}", err)};
-            serde_json::to_string(&response).unwrap()
+        // doesn't seem like insert_into() will throw any errors, leaving room for specific error handling just in case though
+        Err(err) => match err {
+            _ => {
+                panic!("Database error - {}", err);
+            }
         }
     }
 }
 
-#[get("/delete_post/<post_id>")]
-pub fn delete_post(post_id: i32) -> String {
+#[get("/publish/<post_id>")]
+pub fn publish_post(post_id: i32) -> Result<String, NotFound<String>> {
+    use crate::schema::posts::dsl::*;
+
+    let response: PostResponse;
+
+    let post = match diesel::update(posts.find(post_id)).set(published.eq(true)).get_result::<Post>(&mut crate::establish_connection()) {
+        Ok(post) => post,
+        Err(err) => match err {
+            diesel::result::Error::NotFound => {
+                let response = Response { error: true, message: format!("Error publishing post with id {} - {}", post_id, err)};
+                return Err(NotFound(serde_json::to_string(&response).unwrap()));
+            },
+            _ => {
+                panic!("Database error - {}", err);
+            }        
+        }
+    };
+
+    response = PostResponse { error: false, data: post };
+
+    Ok(serde_json::to_string(&response).unwrap())
+}
+
+#[get("/delete/<post_id>")]
+pub fn delete_post(post_id: i32) -> Result<NoContent, NotFound<String>> {
     use crate::schema::posts::dsl::*;
 
     let response: Response;
 
     let num_deleted = match diesel::delete(posts.filter(id.eq(post_id))).execute(&mut crate::establish_connection()) {
         Ok(count) => count,
-        Err(err) => {
-            response = Response { error: true, message: format!("Error deleting post with id {} - {}", post_id, err) };
-            return serde_json::to_string(&response).unwrap(); 
-        } 
+        Err(err) => match err {
+            diesel::result::Error::NotFound => {
+                let response = Response { error: true, message: format!("Error publishing post with id {} - {}", post_id, err)};
+                return Err(NotFound(serde_json::to_string(&response).unwrap()));
+            },
+            _ => {
+                panic!("Database error - {}", err);
+            }        
+        }
     };
 
     if num_deleted > 0 {
-        response = Response { error: false, message: format!("Successfully deleted post with id {}", post_id) };
+        Ok(NoContent)
     } else {
         response = Response { error: true, message: format!("Error - no post with id {}", post_id) };
-    }
-
-    serde_json::to_string(&response).unwrap()
-}
-
-#[get("/publish/<post_id>")]
-pub fn publish_post(post_id: i32) -> String {
-    use crate::schema::posts::dsl::*;
-
-    let response: Response;
-
-    let post = match diesel::update(posts.find(post_id)).set(published.eq(true)).get_result::<Post>(&mut crate::establish_connection()) {
-        Ok(post) => post,
-        Err(err) => {
-            response = Response { error: true, message: format!("Error publishing post with id {} - {}", post_id, err) };
-            return serde_json::to_string(&response).unwrap(); 
-        } 
-    };
-
-    response = Response { error: false, message: format!("Successfully published post '{}'", post.title) };
-
-    serde_json::to_string(&response).unwrap()
+        Err(NotFound(serde_json::to_string(&response).unwrap()))
+    } 
 }

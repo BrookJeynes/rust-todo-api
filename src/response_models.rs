@@ -10,7 +10,14 @@ pub struct Response {
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
-pub struct TodoResponse {
+pub struct PostsResponse {
     pub error: bool,
     pub data: Vec<Post>,
+}
+
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+pub struct PostResponse {
+    pub error: bool,
+    pub data: Post,
 }
