@@ -2,6 +2,12 @@ use rocket::serde::Serialize;
 use crate::models::Post;
 
 #[derive(Serialize)]
+pub enum PostField {
+    Post(Post),
+    Posts(Vec<Post>)
+}
+
+#[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
 pub struct Response {
     pub error: bool,
@@ -10,14 +16,7 @@ pub struct Response {
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
-pub struct PostsResponse {
-    pub error: bool,
-    pub data: Vec<Post>,
-}
-
-#[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
 pub struct PostResponse {
     pub error: bool,
-    pub data: Post,
+    pub data: PostField,
 }

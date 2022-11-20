@@ -1,7 +1,7 @@
 use rocket::serde::json::Json;
 use diesel::prelude::*;
 use crate::models::{Post, NewPost};
-use crate::response_models::{Response, PostsResponse, PostResponse};
+use crate::response_models::{Response, PostResponse, PostField};
 use rocket::response::status::{NotFound, NoContent, Created};
 
 #[get("/")]
@@ -18,7 +18,7 @@ pub fn list_posts() -> String {
         }
     };
 
-    let response = PostsResponse { error: false, data: posts };
+    let response = PostResponse { error: false, data: PostField::Posts(posts) };
 
     serde_json::to_string(&response).unwrap()
 }
@@ -40,7 +40,7 @@ pub fn list_post(post_id: i32) -> Result<String, NotFound<String>> {
         }
     };
 
-    let response = PostResponse { error: false, data: post };
+    let response = PostResponse { error: false, data: PostField::Post(post) };
 
     Ok(serde_json::to_string(&response).unwrap())
 }
@@ -54,7 +54,7 @@ pub fn new_post(post: Json<NewPost>) -> Created<String> {
     // refactor to return post as well
     match diesel::insert_into(posts::table).values(&post).get_result::<Post>(&mut crate::establish_connection()) {
         Ok(post) => {
-            let response = PostsResponse { error: false, data: vec![post] };
+            let response = PostResponse { error: false, data: PostField::Post(post) };
             Created::new("").tagged_body(serde_json::to_string(&response).unwrap())
         },
         // doesn't seem like insert_into() will throw any errors, leaving room for specific error handling just in case though
@@ -85,7 +85,7 @@ pub fn publish_post(post_id: i32) -> Result<String, NotFound<String>> {
         }
     };
 
-    response = PostResponse { error: false, data: post };
+    response = PostResponse { error: false, data: PostField::Post(post) };
 
     Ok(serde_json::to_string(&response).unwrap())
 }
