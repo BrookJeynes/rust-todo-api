@@ -9,6 +9,7 @@ pub mod response_models;
 pub mod models;
 pub mod schema;
 
+// Todo: use a connection pool (R2D2) as not to create a connection everytime it needs to be used
 pub fn establish_connection() -> PgConnection {
     dotenv().ok();
 
